@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { buildImage, pushImage } from "../services/docker.service";
+import { buildImage, pushImage, removeImage } from "../services/docker.service";
 import { submitWorkflow, getWorkflowStatus, getPodLogs, NAMESPACE } from "../services/k8s.service";
 
 const router = Router();
@@ -21,6 +21,8 @@ router.get("/build", async (req: Request, res: Response) => {
     await buildImage(code as string, pixiToml as string, tag, sendLog);
     sendLog("Build complete. Pushing...");
     await pushImage(tag, sendLog);
+    sendLog("Cleaning up local image...");
+    await removeImage(tag);
     sendLog(`DONE:${tag}`);
   } catch (err: any) {
     sendLog(`ERROR: ${err.message}`);
@@ -46,7 +48,6 @@ router.get("/run", async (req: Request, res: Response) => {
     const wfName = wf.metadata.name;
     sendLog(`Workflow: ${wfName}`);
     
-    // Poll for completion
     for (let i = 0; i < 60; i++) {
       await new Promise(r => setTimeout(r, 2000));
       const status: any = await getWorkflowStatus(wfName);

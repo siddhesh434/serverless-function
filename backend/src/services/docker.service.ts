@@ -27,10 +27,17 @@ import json
 ${userCode}
 
 if __name__ == "__main__":
-    args = sys.argv[1:]
-    parsed = [int(a) if a.isdigit() else a for a in args]
-    result = handler(*parsed)
-    print(json.dumps({"result": result}))
+    try:
+        args = sys.argv[1:]
+        parsed = [int(a) if a.isdigit() else a for a in args]
+        result = handler(*parsed)
+        print(json.dumps({"result": result}))
+    except NameError as e:
+        print(json.dumps({"error": "handler function not defined"}))
+    except TypeError as e:
+        print(json.dumps({"error": f"Argument error: {e}"}))
+    except Exception as e:
+        print(json.dumps({"error": str(e)}))
 `;
 }
 
@@ -71,6 +78,7 @@ async function buildImage(code: string, pixi: string, tag: string, onLog: (log: 
       if (event.stream) onLog(event.stream.trim());
     });
   });
+  fs.rmSync(dir, { recursive: true, force: true });
 }
 
 async function pushImage(tag: string, onLog: (log: string) => void): Promise<void> {
@@ -84,4 +92,11 @@ async function pushImage(tag: string, onLog: (log: string) => void): Promise<voi
   });
 }
 
-export { buildImage, pushImage };
+async function removeImage(tag: string): Promise<void> {
+  try {
+    const image = docker.getImage(tag);
+    await image.remove({ force: true });
+  } catch (e) {}
+}
+
+export { buildImage, pushImage, removeImage };

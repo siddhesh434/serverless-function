@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useRef } from "react";
 
 interface LogViewerProps {
   title: string;
@@ -6,6 +7,12 @@ interface LogViewerProps {
 }
 
 export default function LogViewer({ title, logs }: LogViewerProps) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
+
   return (
     <div className="mt-4">
       <h3 className="font-medium mb-2">{title}</h3>
@@ -15,6 +22,7 @@ export default function LogViewer({ title, logs }: LogViewerProps) {
         ) : (
           logs.map((log, i) => <div key={i}>{log}</div>)
         )}
+        <div ref={bottomRef} />
       </div>
     </div>
   );
