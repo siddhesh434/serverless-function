@@ -26,8 +26,8 @@ export default function CodeForm() {
     es.onmessage = (e) => {
       const { log } = JSON.parse(e.data);
       setExecLogs((prev) => [...prev, log]);
-      if (log.startsWith("WORKFLOW_STARTED:")) {
-        setStatus("Workflow running...");
+      if (log === "DONE") {
+        setStatus("");
         es.close();
       }
     };
