@@ -15,8 +15,8 @@ export default function LogViewer({ title, logs }: LogViewerProps) {
 
   return (
     <div className="mt-4">
-      <h3 className="font-medium mb-2">{title}</h3>
-      <div className="bg-black text-green-400 p-3 rounded h-48 overflow-y-auto font-mono text-sm">
+      <h3 className="font-medium mb-2 text-gray-300">{title}</h3>
+      <div className="bg-black text-green-400 p-3 rounded h-48 overflow-y-auto font-mono text-sm border border-gray-700">
         {logs.length === 0 ? (
           <span className="text-gray-500">Waiting for logs...</span>
         ) : (

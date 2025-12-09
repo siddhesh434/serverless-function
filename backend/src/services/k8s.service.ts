@@ -8,23 +8,102 @@ const coreApi = kc.makeApiClient(k8s.CoreV1Api);
 
 const NAMESPACE = "argo";
 
-function createWorkflowSpec(imageName: string, args: string[]) {
+// Create a reusable WorkflowTemplate
+function createWorkflowTemplateSpec(templateName: string, imageName: string) {
   return {
     apiVersion: "argoproj.io/v1alpha1",
-    kind: "Workflow",
-    metadata: { generateName: "func-run-" },
+    kind: "WorkflowTemplate",
+    metadata: {
+      name: templateName,
+      labels: {
+        "serverless-runner": "true",
+        "image": imageName.replace(/[^a-zA-Z0-9-]/g, "-").substring(0, 63),
+      }
+    },
     spec: {
       entrypoint: "main",
+      arguments: {
+        parameters: [
+          { name: "args", value: "[]" }
+        ]
+      },
       templates: [{
         name: "main",
-        container: { image: imageName, args: args },
+        inputs: {
+          parameters: [
+            { name: "args" }
+          ]
+        },
+        container: {
+          image: imageName,
+          command: ["sh", "-c"],
+          args: ["pixi run run {{inputs.parameters.args}}"]
+        },
       }],
     },
   };
 }
 
-async function submitWorkflow(imageName: string, args: string[]) {
-  const workflow = createWorkflowSpec(imageName, args);
+// Create a Workflow that references a WorkflowTemplate
+function createWorkflowFromTemplate(templateName: string, args: string[]) {
+  const argsString = args.join(" ");
+  return {
+    apiVersion: "argoproj.io/v1alpha1",
+    kind: "Workflow",
+    metadata: {
+      generateName: `${templateName}-run-`,
+    },
+    spec: {
+      workflowTemplateRef: {
+        name: templateName,
+      },
+      arguments: {
+        parameters: [
+          { name: "args", value: argsString }
+        ]
+      }
+    },
+  };
+}
+
+
+
+async function createWorkflowTemplate(templateName: string, imageName: string) {
+  const template = createWorkflowTemplateSpec(templateName, imageName);
+
+  // Check if template already exists, if so delete it first
+  try {
+    await customApi.getNamespacedCustomObject({
+      group: "argoproj.io",
+      version: "v1alpha1",
+      namespace: NAMESPACE,
+      plural: "workflowtemplates",
+      name: templateName,
+    });
+    // Template exists, delete it
+    await customApi.deleteNamespacedCustomObject({
+      group: "argoproj.io",
+      version: "v1alpha1",
+      namespace: NAMESPACE,
+      plural: "workflowtemplates",
+      name: templateName,
+    });
+  } catch (e: any) {
+    // Template doesn't exist, that's fine
+  }
+
+  const res = await customApi.createNamespacedCustomObject({
+    group: "argoproj.io",
+    version: "v1alpha1",
+    namespace: NAMESPACE,
+    plural: "workflowtemplates",
+    body: template,
+  });
+  return res;
+}
+
+async function submitWorkflowFromTemplate(templateName: string, args: string[]) {
+  const workflow = createWorkflowFromTemplate(templateName, args);
   const res = await customApi.createNamespacedCustomObject({
     group: "argoproj.io",
     version: "v1alpha1",
@@ -34,6 +113,8 @@ async function submitWorkflow(imageName: string, args: string[]) {
   });
   return res;
 }
+
+
 
 async function getWorkflowStatus(name: string) {
   const res = await customApi.getNamespacedCustomObject({
@@ -46,6 +127,19 @@ async function getWorkflowStatus(name: string) {
   return res as any;
 }
 
+
+
+async function deleteWorkflowTemplate(name: string) {
+  const res = await customApi.deleteNamespacedCustomObject({
+    group: "argoproj.io",
+    version: "v1alpha1",
+    namespace: NAMESPACE,
+    plural: "workflowtemplates",
+    name: name,
+  });
+  return res;
+}
+
 async function getPodLogs(podName: string): Promise<string> {
   const res = await coreApi.readNamespacedPodLog({
     name: podName,
@@ -55,4 +149,10 @@ async function getPodLogs(podName: string): Promise<string> {
   return res || "";
 }
 
-export { coreApi, NAMESPACE, submitWorkflow, getWorkflowStatus, getPodLogs };
+export {
+  submitWorkflowFromTemplate,
+  createWorkflowTemplate,
+  getWorkflowStatus,
+  getPodLogs,
+  deleteWorkflowTemplate,
+};
